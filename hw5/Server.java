@@ -7,23 +7,26 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Server {
-	static ArrayList<Integer> ips;
+	static ArrayList<String> ips;
 	static ArrayList<Integer> ports;
 	static ArrayList<String> supplies;
     static ArrayList<Integer> quantities;
-    ArrayList<Integer> orderIDs = new ArrayList<Integer>();
-    ArrayList<String> userName = new ArrayList<String>();
-    ArrayList<String> myProductName = new ArrayList<String>();
-    ArrayList<String> myOrder = new ArrayList<String>();
+    static ArrayList<Integer> orderIDs = new ArrayList<Integer>();
+    static ArrayList<String> userName = new ArrayList<String>();
+    static ArrayList<String> myProductName = new ArrayList<String>();
+    static ArrayList<String> myOrder = new ArrayList<String>();
+    static AtomicInteger orderIDinit;
+    
     public static void main (String[] args) {
 
 	    Scanner sc = new Scanner(System.in);
 	    int myID = sc.nextInt();
 	    int numServer = sc.nextInt();
 	    String inventoryPath = sc.next();
-	    ips = new ArrayList<Integer>();
+	    ips = new ArrayList<String>();
 	    ports = new ArrayList<Integer>();
 	    assert myID < numServer;
 	    for (int i = 0; i < numServer; i++) {
@@ -31,14 +34,13 @@ public class Server {
 	      String ip_port = sc.next();
 	      String[] nums = ip_port.split(":");
 	      assert nums.length == 2;
-	      ips.add(Integer.parseInt(nums[0]));
+	      ips.add((nums[0]));
 	      ports.add(Integer.parseInt(nums[1]));
 	    }
 	    
 	    // TODO: start server socket to communicate with clients and other servers
 	    ServerSocket socket = null;
 	    try {
-	        int myIP = ips.get(myID);
 	        int myPort = ports.get(myID);
 			socket = new ServerSocket(myPort);
 			
@@ -61,6 +63,7 @@ public class Server {
 				quantities.add(Integer.parseInt(tokens[1]));
 			}
 	    	br.close();
+	    	socket.close();
 	    } catch (NumberFormatException | IOException e1) {
 	    	// TODO Auto-generated catch block
 	    	e1.printStackTrace();
@@ -69,7 +72,13 @@ public class Server {
 	    Socket connectionSocket;
 	    while(true){
 		    try{
+		    	
 	    		connectionSocket = socket.accept();
+	    		awaitOkay(connectionSocket, numServer);
+	    		
+	    		
+	    		
+	    		
 	    		BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
 		    	DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
 		    	String s = new String(inFromClient.readLine());
@@ -81,8 +90,29 @@ public class Server {
 	    }
 	  }
   
+    // send a message to all servers 
+	// wait for acceptance from all
+    public static void awaitOkay(Socket connectionSocket, int numServer){
+    	try {
+            Socket tcpSocket;
+            DataOutputStream outToServer;
+            BufferedReader inFromServer;
+    		for(int i = 0; i < numServer; i++){
+    			
+    			tcpSocket = new Socket(InetAddress.getByName(ips.get(i)), ports.get(i));
+	    	    outToServer = new DataOutputStream(tcpSocket.getOutputStream());	
+	    	    inFromServer = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream())); 
+				
+    		}
+    	} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    }
+    
     public static String clientRequest(String[] tokens){
     	String rString = null;
+    	Integer orderID = orderIDinit.get();
     	if(tokens[0].equals("purchase")){
     		String user = tokens[1];
     		String item = tokens[2];
@@ -91,7 +121,7 @@ public class Server {
     		if(indexSupplies < 0){
 				rString = "Not Available - We do not sell this product";
 			}
-    		else if(p.quantities.get(indexSupplies) < Integer.parseInt(tokens[3])){
+    		else if(quantities.get(indexSupplies) < Integer.parseInt(tokens[3])){
 				rString = "Not Available - Not enough items";
 			}
     		else{
@@ -99,7 +129,7 @@ public class Server {
 				quantities.set(indexSupplies, newQuant);
 				orderIDinit.getAndIncrement();
 				if(!orderIDs.contains(orderID)){
-					p.orderIDs.add(orderID);
+					orderIDs.add(orderID);
 				}
 				else{
 					orderID++;
@@ -121,5 +151,6 @@ public class Server {
     	else if(tokens[0].equals("list")){
     		
     	}
+		return rString;
     }
 }
