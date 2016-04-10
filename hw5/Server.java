@@ -11,6 +11,7 @@ import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Server {
+	final static String baseName = "HW5";
 	static ArrayList<String> ips;
 	static ArrayList<Integer> ports;
 	static ArrayList<String> supplies;
@@ -39,6 +40,8 @@ public class Server {
 	      ports.add(Integer.parseInt(nums[1]));
 	    }
 	    
+	    
+	    
 	    // TODO: start server socket to communicate with clients and other servers
 	    ServerSocket socket = null;
 	    try {
@@ -49,7 +52,42 @@ public class Server {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-	    // TODO: parse the inventory file
+	    parseInventory(inventoryPath, socket);
+	    
+	    // create mutex
+	    String[] linkerInfo = {baseName, Integer.toString(myID), Integer.toString(numServer)};
+	    Linker link;
+	    LamportMutex mutex = null;
+		try {
+			link = new Linker(linkerInfo);
+			mutex = new LamportMutex(link);
+		} catch (Exception e1) {
+			e1.printStackTrace();
+		}
+	    
+	    // TODO: handle request from client
+	    Socket connectionSocket;
+	    while(true){
+		    try{
+	    		connectionSocket = socket.accept();
+	    		//awaitOkay(connectionSocket, numServer);
+	    		
+	    		BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
+		    	DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
+		    	String s = new String(inFromClient.readLine());
+		    	String[] tokens = s.split(" ");
+		    	clientRequest(tokens, mutex, s, outToClient);
+		    	
+	    	}catch(IOException e){
+				//System.out.println("Could not");
+			}
+	    }
+	  }
+  
+    
+    // parse Inventory file
+    public static void parseInventory(String inventoryPath, ServerSocket socket){
+    	
 	    supplies = new ArrayList<String>();
 	    quantities = new ArrayList<Integer>();
 	    try {
@@ -69,28 +107,9 @@ public class Server {
 	    	// TODO Auto-generated catch block
 	    	e1.printStackTrace();
 	    }	
-	    // TODO: handle request from client
-	    Socket connectionSocket;
-	    while(true){
-		    try{
-		    	
-	    		connectionSocket = socket.accept();
-	    		awaitOkay(connectionSocket, numServer);
-	    		
-	    		
-	    		
-	    		
-	    		BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
-		    	DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
-		    	String s = new String(inFromClient.readLine());
-		    	String[] tokens = s.split(" ");
-		    	clientRequest(tokens);
-	    	}catch(IOException e){
-				//System.out.println("Could not");
-			}
-	    }
-	  }
-  
+    }
+    
+    
     // send a message to all servers 
 	// wait for acceptance from all
     public static void awaitOkay(Socket connectionSocket, int numServer){
@@ -103,7 +122,7 @@ public class Server {
     			tcpSocket = new Socket(InetAddress.getByName(ips.get(i)), ports.get(i));
 	    	    outToServer = new DataOutputStream(tcpSocket.getOutputStream());	
 	    	    inFromServer = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream())); 
-				
+			
     		}
     	} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -111,13 +130,12 @@ public class Server {
 		}
     }
     
-    public static String clientRequest(String[] tokens){
-    	String rString = null;
+    public static String clientRequest(String[] tokens, LamportMutex mutex, String order, DataOutputStream outToClient){
+    	String rString = order;
     	Integer orderID = orderIDinit.get();
     	if(tokens[0].equals("purchase")){
-    		String user = tokens[1];
-    		String item = tokens[2];
-    		String item_num = tokens[3];
+    		mutex.requestCS();
+    		
     		int indexSupplies = supplies.indexOf(tokens[2]);
     		if(indexSupplies < 0){
 				rString = "Not Available - We do not sell this product";
@@ -141,16 +159,93 @@ public class Server {
 			    myProductName.add(tokens[2]);
 			    myOrder.add(tokens[3]);
     		}
-    		
+    		try {
+				outToClient.writeBytes(rString + '\n');
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    		mutex.releaseCS();
     	}
     	else if(tokens[0].equals("cancel")){
-    		
+			//checks if the orderID is present
+			int indexID = orderIDs.indexOf(Integer.parseInt(tokens[1]));
+		
+			//if orderID is not there return not found
+			if(indexID < 0){
+				rString = tokens[1] + " not found, no such order";
+			}
+			
+			//else remove order from all of the lists...lol
+			else {
+				mutex.requestCS();
+				rString = "Order " + tokens[1] + " is canceled";
+				int supplyIndex = supplies.indexOf(myProductName.get(indexID));
+				quantities.set(supplyIndex, Integer.parseInt(myOrder.get(indexID)) + quantities.get(supplyIndex));
+				orderIDs.remove(indexID);
+			    userName.remove(indexID);
+			    myProductName.remove(indexID);
+			    myOrder.remove(indexID);
+			    mutex.releaseCS();
+				
+			}
+			//System.out.println("Sending data");
+			try {
+				outToClient.writeBytes(rString + '\n');
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			//System.out.println("Sent");
     	}
     	else if(tokens[0].equals("search")){
-    		
+    		rString = new String();
+			//checks if the user is in the database
+			int indexName = userName.indexOf(tokens[1]);
+			if(indexName < 0){
+				rString = "No order found for " + tokens[1];
+			}
+			
+			//if in the database...iterates through all users in order to see all instances of the user
+			else {
+				int i = 0;
+				for(String currUser: userName){
+					if(currUser.equals(tokens[1])){
+						//return string: <order-id>, <product-name>, <quantity>
+						rString += orderIDs.get(i) + ", " + myProductName.get(i) + ", " + myOrder.get(i) + " ";
+						//rString = orderIDs.get(i) + ", " + myProductName.get(i) + ", " + myOrder.get(i) + " ";
+						//outToClient.writeBytes(rString + '\n');
+					}
+					//outToClient.writeByte('\n');
+					i++;
+				}
+			}
+			//System.out.println("Sending data");
+			try {
+				outToClient.writeBytes(rString + '\n');
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			//System.out.println("Sent");
     	}
     	else if(tokens[0].equals("list")){
-    		
+    		int sizeInv = supplies.size();
+			rString = new String();
+			for(int i=0; i<sizeInv; i++){
+				rString += supplies.get(i) + " " + quantities.get(i) + " ";
+				//rString = supplies.get(i) + " " + quantities.get(i) + " ";
+				//outToClient.writeBytes(rString + '\n');
+			}
+			//outToClient.writeByte('\n');
+			//System.out.print(rString);
+			//System.out.println("Sending data");
+			try {
+				outToClient.writeBytes(rString + '\n');
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
     	}
 		return rString;
     }

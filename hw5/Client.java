@@ -1,26 +1,48 @@
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Scanner;
 
 public class Client {
+  static ArrayList<String> ips;
+  static ArrayList<Integer> ports;
   public static void main (String[] args) {
     Scanner sc = new Scanner(System.in);
     int numServer = sc.nextInt();
-    ArrayList<Integer> ips = new ArrayList<Integer>();
-    ArrayList<Integer> ports = new ArrayList<Integer>();
+    ips = new ArrayList<String>();
+    ports = new ArrayList<Integer>();
+   
     
     for (int i = 0; i < numServer; i++) {
-      // TODO: parse inputs to get the ips and ports of servers
-	  String ip_port = sc.next();
-      String[] nums = ip_port.split(":");
-      assert nums.length == 2;
-      ips.add(Integer.parseInt(nums[0]));
-      ports.add(Integer.parseInt(nums[1]));
-    }
+	      // TODO: parse inputs to get the ips and ports of servers
+	      String ip_port = sc.next();
+	      String[] nums = ip_port.split(":");
+	      assert nums.length == 2;
+	      ips.add((nums[0]));
+	      ports.add(Integer.parseInt(nums[1]));
+	}
 
+    Socket tcpSocket;
+    DataOutputStream outToServer;
+    BufferedReader inFromServer;
     while(sc.hasNextLine()) {
       String cmd = sc.nextLine();
       String[] tokens = cmd.split(" ");
-
+      byte[] buffer = new byte[cmd.length()];
+	  try {
+		buffer = cmd.getBytes("UTF-8");
+	  } catch (UnsupportedEncodingException e1) {
+		// TODO Auto-generated catch block
+		e1.printStackTrace();
+	  }
+      
       if (tokens[0].equals("purchase")) {
         // TODO: send appropriate command to the server and display the
         // appropriate responses form the server
@@ -30,7 +52,46 @@ public class Client {
     	    //      if(100 ms pass))
     	    //         send 
     	    //      else 
-    	    //        restart with next one 
+    	    // li       restart with next one 
+    	 int server = 0; // for going through closest ones
+    	 boolean connected = false;
+    	 String retstring = "";
+    	 while(server < numServer && !connected){
+    		 try{
+	    		 InetSocketAddress addr = new InetSocketAddress(ips.get(server), ports.get(server));
+		   	  	 tcpSocket = new Socket();
+		   	  	 
+		   	  	 // 100 ms for reading from socket another 100ms for connect to socket
+		   	  	 tcpSocket.setSoTimeout(100);
+		   	  	 tcpSocket.connect(addr, 100);
+		   	  	 
+		   	  	 if(!tcpSocket.isConnected()){
+		   	  		 ++server;
+		   	  		 continue;
+		   	  	 }
+		   	  	 // problem - say that it breaks while 
+		   	  	 outToServer = new DataOutputStream(tcpSocket.getOutputStream());	
+		   	  	 inFromServer = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream())); 
+		//           System.out.println("Doing TCP");
+		//           System.out.println("Sending packet");
+		         outToServer.writeBytes(cmd + '\n');
+		//           System.out.println("Recieving packet");
+		         retstring = inFromServer.readLine();
+		         connected = true;
+	    	 }
+    		 catch(SocketTimeoutException e ){
+    			 connected = false;
+    			 ++server;
+    		 }
+    		 catch(IOException ex){
+    			 connected = false;
+    			 ++server;
+    		 }
+    		 
+	      }	
+          System.out.println("Received from Server:" + retstring);
+    	 
+
       } else if (tokens[0].equals("cancel")) {
         // TODO: send appropriate command to the server and display the
         // appropriate responses form the server
@@ -44,5 +105,6 @@ public class Client {
         System.out.println("ERROR: No such command");
       }
     }
+   
   }
 }

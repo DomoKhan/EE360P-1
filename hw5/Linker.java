@@ -7,14 +7,14 @@ public class Linker implements MsgHandler {
 	MsgHandler comm = null;// lower layer
 	public boolean appFinished = false;
 	public List<Integer> neighbors = new ArrayList<Integer>();	
-	public Properties prop = new Properties();
+	//public Properties prop = new Properties();
 	public Linker (String args[]) throws Exception { 
 		String basename = args[0];
 		myId = Integer.parseInt(args[1]);
 		if (!Topology.readNeighbors(myId, neighbors)) 
 			Topology.setComplete(myId, neighbors, Integer.parseInt(args[2]));
 		n = neighbors.size() + 1;
-		prop.loadFromXML(new FileInputStream("LinkerProp.xml"));
+	//	prop.loadFromXML(new FileInputStream("LinkerProp.xml"));
 		connector = new Connector();
 		connector.Connect(basename, myId, neighbors);
 	}
@@ -56,7 +56,7 @@ public class Linker implements MsgHandler {
 		if (app != null) app.executeMsg(m);		
 	}
 	public synchronized int getMyId() { return myId; }
-	public Properties getProp() { return prop;}
+//	public Properties getProp() { return prop;}
 	public List<Integer> getNeighbors() { return neighbors; }
 	public void close() { appFinished = true; connector.closeSockets(); }
 	public void turnPassive() {	}
