@@ -4,7 +4,7 @@ public class LamportMutex extends Process implements Lock {
 	public DirectClock v ;
 	public int [] q ; // request queue
 	
-	public LamportMutex( Linker initComm) {
+	public LamportMutex(Linker initComm) {
 		super (initComm ) ; 
 		v= new DirectClock(N, myId ) ; 
 		q= new int [N] ; 

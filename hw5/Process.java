@@ -8,14 +8,14 @@ public class Process implements MsgHandler {
 	public Process (Linker initComm) {
 		comm = initComm ; 
 		myId = comm.getMyId ( );
-		N= comm. getNumProc ( ) ;
+		N= comm.getNumProc ( ) ;
 	} 
 	public synchronized void handleMsg(Msg m, int src , String tag ) { 
 		
 	} 
-	public void sendMsg( int destId , Object objects ) {
+	public void sendMsg( int destId , Object... objects ) {
 		Util.println ("Sending msg to"+ destId ) ; 
-		comm.sendMsg( destId , Util . getArrayList ( objects ) ) ;
+		comm.sendMsg( destId , Util.getArrayList ( objects ) ) ;
 	} 
 	public void broadcastMsg ( String tag , int msg) {
 		for ( int i= 0; i < N; i++) if (i != myId) sendMsg( i , tag , msg ) ;
@@ -32,16 +32,16 @@ public class Process implements MsgHandler {
 	public void multicast ( LinkedList<Integer> destIds , String tag , String msg) {
 		for (int i: destIds)
 			sendMsg(i,tag,msg) ;
-	} s
+	} 
 	public boolean isNeighbor (int i) {
 		return (comm.neighbors.contains(i)) ;
 	} 
 	public Msg receiveMsg (int fromId) {
 		List<Object> recvdMssage = receiveMsgAsObjectList ( fromId );
-		return new Msg(fromId, myId,(String) recvdMssage.get(0), (String) recvdMssage.get(1));
+		return new Msg(fromId, myId,(String) recvdMssage.get(0), Util.getLinkedList(recvdMssage));
 	}
 	public List<Object> receiveMsgAsObjectList(int fromId){
-		return comm.receiveMsg(fromId);
+		return comm.receiveMsg(fromId).getMsgBuf();
 	} 
 	public synchronized void myWait() { 
 		try {
@@ -57,9 +57,14 @@ public class Process implements MsgHandler {
 	public void startListening(){
 		for(int i=0; i<N; i++)
 			if (i != myId)
-				(new ListenerThread (i,this)).start();
+				(new ListenerThread (i,comm)).start();
 	}
 	public static void println(String s){
 		System.out.println(s);
+	}
+	@Override
+	public void executeMsg(Msg m) {
+		// TODO Auto-generated method stub
+		
 	}
 }

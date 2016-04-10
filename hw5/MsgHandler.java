@@ -10,4 +10,6 @@ public interface MsgHandler {
 	public void mySignal ( ) ; 
 	
 	public void startListening ( ) ;
+
+	public void executeMsg(Msg m);
 }

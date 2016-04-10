@@ -1,23 +1,17 @@
-import java.io.IOException;
-
+import java.io.*;
 public class ListenerThread extends Thread {
- 	int channel; 
-	MsgHandler process; 
-	
-	public ListenerThread (int channel , MsgHandler process ) {
-		this.channel = channel; 
-		this.process = process ;
-	} 
-	
-	public void run () {
-		while (true ) { 
-			try {
-				Msg m = process.receiveMsg( channel );
-				process.handleMsg(m, m. getSrcId () , m.getTag()) ;
-				process.mySignal() ; // automatic notification after every message
-			} catch (IOException e ) {
-				System . err . println ( e );
-			} 
-		} 
-	} 
+    int channel;
+    Linker comm = null;
+    public ListenerThread(int channel, Linker comm) {
+        this.channel = channel;
+        this.comm = comm;
+    }
+    public void run() {
+        while (!comm.appFinished) {
+            // System.out.println("Listening on " + channel);
+			Msg m = comm.receiveMsg(channel);
+			comm.executeMsg(m);
+           
+        }
+    }
 }
