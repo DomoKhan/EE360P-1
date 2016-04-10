@@ -45,7 +45,8 @@ public class Server {
 	    // TODO: start server socket to communicate with clients and other servers
 	    ServerSocket socket = null;
 	    try {
-	        int myPort = ports.get(myID);
+	        int myPort = ports.get(myID - 1);
+                System.out.println(myPort);
 			socket = new ServerSocket(myPort);
 			
 	    } catch (IOException e) {
