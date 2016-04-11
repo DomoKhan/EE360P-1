@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Scanner;
 
 public class Client {
+  static boolean printStatements = true;
   static ArrayList<String> ips;
   static ArrayList<Integer> ports;
   public static void main (String[] args) {
@@ -62,10 +63,12 @@ public class Client {
 		   	  	 tcpSocket = new Socket();
 		   	  	 
 		   	  	 // 100 ms for reading from socket another 100ms for connect to socket
-		   	  	 tcpSocket.setSoTimeout(100);
+		   	  	 //tcpSocket.setSoTimeout(100);
 		   	  	 tcpSocket.connect(addr, 100);
 		   	  	 
 		   	  	 if(!tcpSocket.isConnected()){
+                                         if(printStatements)
+                                           System.out.println("TimeOut Occurred");
 		   	  		 ++server;
 		   	  		 continue;
 		   	  	 }
@@ -80,6 +83,7 @@ public class Client {
 		         connected = true;
 	    	 }
     		 catch(SocketTimeoutException e ){
+                         System.out.println("Socket Timeout Exception Occurred");
     			 connected = false;
     			 ++server;
     		 }
