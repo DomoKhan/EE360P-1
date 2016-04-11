@@ -41,6 +41,7 @@ public class Server {
 	    client_request = new ArrayList<String>();
 	    sockets = new ArrayList<Socket>();
 	    req_queue = new int[numServer];
+	    clock = new DirectClock(numServer, myID - 1);
 	    for(int i = 0; i < numServer; i++) // means don't want the CS 
 	    	req_queue[i] = Integer.MAX_VALUE;
 	    
@@ -102,7 +103,9 @@ public class Server {
 		while(true){
 		    // get client command - makes its own thread
 			// create listener for request 
-			if(!clientListener.isAlive()){
+			if(!clientListener.isAlive() && clientListener.getState() != Thread.State.NEW){
+				if(printStatements)
+					System.out.println("Heard Client Request");
 				String request = client_request.remove(0); 
 				Socket connectionSocket = sockets.remove(0);
 				clientListener = createClientRequestListener(socket);
@@ -111,7 +114,9 @@ public class Server {
 				clientRequest(request, connectionSocket, numServer);			
 			}
 			
-			if(!serverListener.isAlive()){
+			if(!serverListener.isAlive() && serverListener.getState() != Thread.State.NEW){
+				if(printStatements)
+					System.out.println("Heard Server Request");
 				serverListener = createServerRequestListener();	
 				serverListener.start();
 				sendOkays(numServer);
@@ -161,6 +166,7 @@ public class Server {
 					Message msg = (Message)ois.readObject();
 					req_queue[msg.getID()] = msg.getTime();
 					// maybe update inventory
+					socket.close();
 				} catch (ClassNotFoundException | IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -206,9 +212,11 @@ public class Server {
     }
     
     public static void sendOkays(int numServer){
-    	int myTime = req_queue[myID];
+    	if(printStatements)
+    		System.out.println("Sending an okay");
+    	int myTime = req_queue[myID - 1];
     	for(int i = 0; i < numServer; ++i){
-    		if(i == myID)
+    		if(i == (myID - 1))
     			continue;
     		if(req_queue[i] < myTime){
     			boolean okay = true;
@@ -228,9 +236,9 @@ public class Server {
     	try {
             // broadcast message
     		for(int i = 0; i < numServer; i++){
-    			if(i == myID)
+    			if(i == (myID - 1))
     				continue;
-    			Message req = new Message(req_queue[myID], supplies, quantities, myID);
+    			Message req = new Message(req_queue[myID - 1], supplies, quantities, myID);
     			sendMsg(i, req);
     		}
     		// probably do it differently
@@ -243,11 +251,13 @@ public class Server {
     // check if you can access the CS
     public static boolean okayCS(int numServer){
 		for(int i = 0; i < numServer; ++i){
-			if(req_queue[i] < clock.getValue(myID))
+			if(req_queue[i] < clock.getValue(myID - 1))
 				return false;
-			if(req_queue[i] == clock.getValue(myID) && i < myID)
+			if(req_queue[i] == clock.getValue(myID - 1) && i < myID - 1)
 				return false;
 		}
+		if(printStatements)
+			System.out.println("Entering CS");
 		return true;
     }
     
@@ -280,9 +290,13 @@ public class Server {
     // send a message to all servers 
 	// wait for acceptance from all
     public synchronized static void requestCS(int numServer){
+    	if(printStatements)
+    		System.out.println("Requesting CS");
     	clock.tick();
-    	req_queue[myID] = clock.getValue(myID);
+    	req_queue[myID - 1] = clock.getValue(myID - 1);
     	broadcastMsg(numServer);
+    	if(printStatements)
+    		System.out.println("Broadcasted Request");
     	listenForOkays(numServer);
     	while(!okayCS(numServer)){
 			try {
@@ -295,8 +309,12 @@ public class Server {
     }
     
     public synchronized static void releaseCS(int numServer){
-    	req_queue[myID] = Integer.MAX_VALUE;
+    	if(printStatements)
+    		System.out.println("Releasing CS");
+    	req_queue[myID - 1] = Integer.MAX_VALUE;
     	broadcastMsg(numServer);
+    	if(printStatements)
+    		System.out.println("Broadcasted relase");
     }
     
     public static String clientRequest(String order, Socket connectionSocket, int numServer){
@@ -315,7 +333,7 @@ public class Server {
     	String[] tokens = order.split(" ");
     	Integer orderID = orderIDinit.get();
     	if(tokens[0].equals("purchase")){
-    	//	requestCS(numServer);
+    		requestCS(numServer);
     		
     		int indexSupplies = supplies.indexOf(tokens[2]);
     		if(indexSupplies < 0){
