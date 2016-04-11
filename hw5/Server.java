@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class Server {
-	final static String baseName = "HW5";
 	final static boolean printStatements = true;
 	static ArrayList<String> ips;
 	static ArrayList<Integer> ports;
@@ -25,11 +24,12 @@ public class Server {
     static ArrayList<String> userName = new ArrayList<String>();
     static ArrayList<String> myProductName = new ArrayList<String>();
     static ArrayList<String> myOrder = new ArrayList<String>();
-    static AtomicInteger orderIDinit;
+    static AtomicInteger orderIDinit = new AtomicInteger(1);
     static DirectClock clock;
     static int myID;
     static int[] req_queue;
     static ArrayList<String> client_request;
+    static ArrayList<Socket> sockets;
     public static void main (String[] args) {
 	    Scanner sc = new Scanner(System.in);
 	    myID = sc.nextInt();
@@ -39,6 +39,7 @@ public class Server {
 	    ports = new ArrayList<Integer>();
 	    serverPorts = new ArrayList<Integer>();
 	    client_request = new ArrayList<String>();
+	    sockets = new ArrayList<Socket>();
 	    req_queue = new int[numServer];
 	    for(int i = 0; i < numServer; i++) // means don't want the CS 
 	    	req_queue[i] = Integer.MAX_VALUE;
@@ -103,9 +104,11 @@ public class Server {
 			// create listener for request 
 			if(!clientListener.isAlive()){
 				String request = client_request.remove(0); 
+				Socket connectionSocket = sockets.remove(0);
 				clientListener = createClientRequestListener(socket);
 				clientListener.start();
-				clientRequest(request, socket, numServer);			
+				
+				clientRequest(request, connectionSocket, numServer);			
 			}
 			
 			if(!serverListener.isAlive()){
@@ -130,6 +133,7 @@ public class Server {
 					final BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
 					String s = new String(inFromClient.readLine());
 					client_request.add(s);
+					sockets.add(connectionSocket);	
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -295,17 +299,11 @@ public class Server {
     	broadcastMsg(numServer);
     }
     
-    public static String clientRequest(String order, ServerSocket socket, int numServer){
+    public static String clientRequest(String order, Socket connectionSocket, int numServer){
     	// TODO: handle request from client
     	if(printStatements)
     		System.out.println("Dealing with Client Request");
-	    Socket connectionSocket = null;
-		try {
-			connectionSocket = socket.accept();
-	    } catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+	    
     	DataOutputStream outToClient = null;
 		try {
 			outToClient = new DataOutputStream(connectionSocket.getOutputStream());
@@ -317,7 +315,7 @@ public class Server {
     	String[] tokens = order.split(" ");
     	Integer orderID = orderIDinit.get();
     	if(tokens[0].equals("purchase")){
-    		requestCS(numServer);
+    	//	requestCS(numServer);
     		
     		int indexSupplies = supplies.indexOf(tokens[2]);
     		if(indexSupplies < 0){
@@ -377,7 +375,8 @@ public class Server {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			//System.out.println("Sent");
+			if(printStatements)
+				System.out.println("Sent");
     	}
     	else if(tokens[0].equals("search")){
     		rString = new String();
@@ -427,7 +426,9 @@ public class Server {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-    	}
+    	} 
+        if(printStatements)
+          System.out.println("Completed Client Request Processing");
 		return rString;
     }
 }
