@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -14,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class Server {
-	final static boolean printStatements = false;
+	final static boolean printStatements = true;
 	static ArrayList<String> ips;
 	static ArrayList<Integer> ports;
 	static ArrayList<Integer> serverPorts; // only used for each server sending messages to each other
@@ -30,6 +31,9 @@ public class Server {
     static int[] req_queue;
     static ArrayList<String> client_request;
     static ArrayList<Socket> sockets; 
+    static boolean inCS = false;
+    static int okaySent = 0;
+    static int releasedReceived = 0;
     public static void main (String[] args) {
 	    Scanner sc = new Scanner(System.in);
 	    myID = sc.nextInt();
@@ -106,19 +110,35 @@ public class Server {
 			if(!clientListener.isAlive() && clientListener.getState() != Thread.State.NEW){
 				if(printStatements)
 					System.out.println("Heard Client Request");
-				String request = client_request.remove(0); 
-				Socket connectionSocket = sockets.remove(0);
+				final String request = client_request.remove(0); 
+				final Socket connectionSocket = sockets.remove(0);
+				final int tempServer = numServer;
 				clientListener = createClientRequestListener(socket);
 				clientListener.start();
-				clientRequest(request, connectionSocket, numServer);			
-			}
-			
+				new Thread(new Runnable(){
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						clientRequest(request, connectionSocket, tempServer);
+					}
+					
+				}).start();
+							
+			}		
 			if(!serverListener.isAlive() && serverListener.getState() != Thread.State.NEW){
 				if(printStatements)
 					System.out.println("Heard Server Request");
+				printQueue();
 				serverListener = createServerRequestListener();	
 				serverListener.start();
-				sendOkays(numServer);
+				final int tempServer = numServer;
+				new Thread(new Runnable(){
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						sendOkays(tempServer);
+					}
+				}).start();
 			}
 	    }
 	  }
@@ -170,6 +190,8 @@ public class Server {
 					req_queue[msg.getID() - 1] = msg.getTime();
 					// maybe update inventory
 					quantities = msg.getQuantities();
+					if(msg.getOkay() == true) // release is received
+						++releasedReceived;
 					socket.close();
 				} catch (ClassNotFoundException | IOException e) {
 					// TODO Auto-generated catch block
@@ -203,32 +225,47 @@ public class Server {
     }
     
     public static void sendMsg(int id, Message req) throws IOException{
-    	Socket tcpSocket = new Socket(InetAddress.getByName(ips.get(id)), serverPorts.get(id));
-	    ObjectOutputStream oos = new ObjectOutputStream(tcpSocket.getOutputStream());
+
 	    try {
+	    	Socket tcpSocket = new Socket(InetAddress.getByName(ips.get(id)), serverPorts.get(id));
+		    ObjectOutputStream oos = new ObjectOutputStream(tcpSocket.getOutputStream());
 			oos.writeObject(req);
-		} catch (IOException e) {
+			tcpSocket.close();
+		} 
+	    catch(ConnectException ex){
+	    	req_queue[id] = Integer.MAX_VALUE; // can't connect so ignore it 
+	    	System.out.println("Can't Connect to server");
+	    }
+	    catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-	    tcpSocket.close();
+	    
     }
     
     public static void sendOkays(int numServer){
     	if(printStatements)
     		System.out.println("Entering okay");
+    	printQueue();
     	int myTime = req_queue[myID - 1];
+    	
     	for(int i = 0; i < numServer; ++i){
+    		
     		if(i == (myID - 1))
     			continue;
     		if(req_queue[i] < myTime){
     			if(printStatements)
     				System.out.println("Sending okay");
+    			++okaySent;
     			boolean okay = true;
     			Message msg = new Message(okay, quantities, myID);
     			try {
 					sendMsg(i, msg);
-				} catch (IOException e) {
+				} 
+    			catch(ConnectException ex){
+    		    	System.out.println("Can't Connect to server");
+    		    }
+    			catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
@@ -255,45 +292,30 @@ public class Server {
     
     // check if you can access the CS
     public static boolean okayCS(int numServer){
+    	if(printStatements){
+	    	System.out.println("okaySent " + okaySent);
+	    	System.out.println("Released " + releasedReceived);
+    	}
 		for(int i = 0; i < numServer; ++i){
-			if(req_queue[i] < clock.getValue(myID - 1))
+			if(req_queue[i] < clock.getValue(myID - 1)){
+				System.out.println("Greater Clock");
 				return false;
-			if(req_queue[i] == clock.getValue(myID - 1) && i < myID - 1)
+			}
+			if(req_queue[i] == clock.getValue(myID - 1) && i < (myID - 1)){
+				System.out.println("Same Clock");
 				return false;
+			}
+			if(okaySent > releasedReceived){
+				System.out.println("Not enough releases");
+				return false;
+			}
 		}
 		if(printStatements)
 			System.out.println("Entering CS");
 		return true;
     }
     
-    public static void listenForOkays(int numServer){
-    	for(int i = 0; i < numServer; ++i){
-    		if(i == (myID - 1))
-    			continue;
-    		final Socket tcpSocket;
-			try {
-				tcpSocket = new Socket(InetAddress.getByName(ips.get(i)), serverPorts.get(i));
-				final ObjectInputStream ois = new ObjectInputStream(tcpSocket.getInputStream());
-		    	new Thread(new Runnable(){
-					public void run() {
-						try {
-							Message msg = (Message)ois.readObject();
-							req_queue[msg.getID()] = msg.getTime();
-							// requestCS is used only for changes in inventory
-							quantities = msg.getQuantities();
-						} catch (ClassNotFoundException | IOException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					}		
-		    	}).start();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}   
-    	}
-    }
-    
+
     /* resets the req_queue so that the queue will be filled with
      * achknowledgement time stamps rather than local copies
      */
@@ -317,9 +339,7 @@ public class Server {
     	broadcastMsg(numServer);
     	if(printStatements)
     		System.out.println("Broadcasted Request");
-    	//listenForOkays(numServer);
-    	if(printStatements)
-    		System.out.println("Listening for response");
+    	printQueue();
     	while(!okayCS(numServer)){
 			try {
 				Thread.sleep(1000);
@@ -328,12 +348,15 @@ public class Server {
 				e.printStackTrace();
 			}
     	}
+    	inCS = true;
     }
+    
     
     public synchronized static void releaseCS(int numServer){
     	if(printStatements)
     		System.out.println("Releasing CS");
     	req_queue[myID - 1] = Integer.MAX_VALUE;
+    	inCS = false;
     	broadcastMsg(numServer);
     	if(printStatements)
     		System.out.println("Broadcasted release");
@@ -382,6 +405,7 @@ public class Server {
     		}
     		try {
 				outToClient.writeBytes(rString + '\n');
+				printQueue();
 				releaseCS(numServer);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -399,6 +423,7 @@ public class Server {
 			
 			//else remove order from all of the lists...lol
 			else {
+				printQueue();
 				requestCS(numServer);
 				rString = "Order " + tokens[1] + " is canceled";
 				int supplyIndex = supplies.indexOf(myProductName.get(indexID));
@@ -410,7 +435,7 @@ public class Server {
 			    releaseCS(numServer);
 				
 			}
-			//System.out.println("Sending data");
+			System.out.println("Sending data");
 			try {
 				outToClient.writeBytes(rString + '\n');
 			} catch (IOException e) {
@@ -472,5 +497,12 @@ public class Server {
         if(printStatements)
           System.out.println("Completed Client Request Processing");
 		return rString;
+    }
+    
+    public static void printQueue(){
+    	/*for(int i = 0; i < req_queue.length; ++i){
+    		System.out.print(req_queue[i] + " ");
+    	}
+    	System.out.println();*/
     }
 }

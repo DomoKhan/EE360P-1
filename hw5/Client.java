@@ -3,6 +3,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -105,7 +106,7 @@ public class Client {
 		   	  	 tcpSocket = new Socket();
 		   	  	 
 		   	  	 // 100 ms for reading from socket another 100ms for connect to socket
-		   	  	 //tcpSocket.setSoTimeout(100);
+		   	  	// tcpSocket.setSoTimeout(100);
 		   	  	 tcpSocket.connect(addr, 100);
 		   	  	 
 		   	  	 if(!tcpSocket.isConnected()){
@@ -129,12 +130,15 @@ public class Client {
  			 connected = false;
  			 ++server;
  		 }
+ 		 catch(ConnectException ex){
+ 			connected = false;
+			 ++server;
+ 		 }
  		 catch(IOException ex){
  			 connected = false;
  			 ++server;
  		 }
- 		 
-	      }	
+ 	 }
        //System.out.println("Received from Server:" + retstring);
  	 return retstring;
 
