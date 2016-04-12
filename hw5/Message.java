@@ -17,10 +17,11 @@ public class Message implements Serializable{
     	okay = false;
     }
     
-    Message(boolean okay, ArrayList<Integer> quantities){
+    Message(boolean okay, ArrayList<Integer> quantities, int myID){
     	this.okay = okay;
     	timestamp = Integer.MAX_VALUE;
     	this.quantities = quantities;
+    	this.id = myID;
     }
     
     public boolean getOkay(){

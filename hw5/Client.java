@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Scanner;
 
 public class Client {
-  static boolean printStatements = true;
+  static boolean printStatements = false;
   static ArrayList<String> ips;
   static ArrayList<Integer> ports;
   public static void main (String[] args) {
@@ -30,11 +30,11 @@ public class Client {
 	      ports.add(Integer.parseInt(nums[1]));
 	}
 
-    Socket tcpSocket;
-    DataOutputStream outToServer;
     BufferedReader inFromServer;
     while(sc.hasNextLine()) {
       String cmd = sc.nextLine();
+      if (cmd.equals(""))
+    	  continue;
       String[] tokens = cmd.split(" ");
       byte[] buffer = new byte[cmd.length()];
 	  try {
@@ -47,18 +47,60 @@ public class Client {
       if (tokens[0].equals("purchase")) {
         // TODO: send appropriate command to the server and display the
         // appropriate responses form the server
-    	  // Psuedo
-    	   	// while( not connected)
-    	    // 		connect to current choice
-    	    //      if(100 ms pass))
-    	    //         send 
-    	    //      else 
-    	    // li       restart with next one 
-    	 int server = 0; // for going through closest ones
-    	 boolean connected = false;
-    	 String retstring = "";
-    	 while(server < numServer && !connected){
-    		 try{
+    	  String ret = tryToConnectToServer(numServer, cmd);
+    	  System.out.println("Received from Server:\n" + ret);
+      } else if (tokens[0].equals("cancel")) {
+        // TODO: send appropriate command to the server and display the
+        // appropriate responses form the server
+    	  String ret = tryToConnectToServer(numServer, cmd);
+    	  System.out.println("Received from Server:\n" + ret);
+      } else if (tokens[0].equals("search")) {
+        // TODO: send appropriate command to the server and display the
+        // appropriate responses form the server
+    	  String ret = tryToConnectToServer(numServer, cmd);
+    	  if(! ret.contains("No order found")){
+              String[] breakRetString = ret.split(" ");
+              int size = breakRetString.length;
+              ret = new String();
+              for(int i=0; i<size; i+=3){
+            	  ret += breakRetString[i]+ " " + breakRetString[i+1] + " " + breakRetString[i+2] + "\n";
+              }
+          }
+    	  System.out.println("Received from Server:\n" + ret);
+      } else if (tokens[0].equals("list")) {
+        // TODO: send appropriate command to the server and display the
+        // appropriate responses form the server
+    	  String ret = tryToConnectToServer(numServer, cmd);
+    	  String[] breakRetString = ret.split(" ");
+          int size = breakRetString.length;
+          ret = new String();
+          for(int i=0; i<size; i+=2){
+        	  ret += breakRetString[i]+ " " + breakRetString[i+1] + "\n";
+          }
+    	  System.out.println("Received from Server:\n" + ret);
+      } else {
+        System.out.println("ERROR: No such command" +"\n");
+      }
+    }
+   
+  }
+  
+  // Psuedo
+ 	// while( not connected)
+  // 		connect to current choice
+  //      if(100 ms pass))
+  //         send 
+  //      else 
+  // li       restart with next one 
+  private static String tryToConnectToServer(int numServer, String cmd){
+	  int server = 0; // for going through closest ones
+ 	 boolean connected = false;
+ 	Socket tcpSocket;
+ 	DataOutputStream outToServer;
+ 	BufferedReader inFromServer;
+ 	 String retstring = "";
+ 	 while(server < numServer && !connected){
+ 		 try{
 	    		 InetSocketAddress addr = new InetSocketAddress(ips.get(server), ports.get(server));
 		   	  	 tcpSocket = new Socket();
 		   	  	 
@@ -67,8 +109,8 @@ public class Client {
 		   	  	 tcpSocket.connect(addr, 100);
 		   	  	 
 		   	  	 if(!tcpSocket.isConnected()){
-                                         if(printStatements)
-                                           System.out.println("TimeOut Occurred");
+                                      if(printStatements)
+                                        System.out.println("TimeOut Occurred");
 		   	  		 ++server;
 		   	  		 continue;
 		   	  	 }
@@ -82,33 +124,19 @@ public class Client {
 		         retstring = inFromServer.readLine();
 		         connected = true;
 	    	 }
-    		 catch(SocketTimeoutException e ){
-                         System.out.println("Socket Timeout Exception Occurred");
-    			 connected = false;
-    			 ++server;
-    		 }
-    		 catch(IOException ex){
-    			 connected = false;
-    			 ++server;
-    		 }
-    		 
+ 		 catch(SocketTimeoutException e ){
+                      System.out.println("Socket Timeout Exception Occurred");
+ 			 connected = false;
+ 			 ++server;
+ 		 }
+ 		 catch(IOException ex){
+ 			 connected = false;
+ 			 ++server;
+ 		 }
+ 		 
 	      }	
-          System.out.println("Received from Server:" + retstring);
-    	 
+       //System.out.println("Received from Server:" + retstring);
+ 	 return retstring;
 
-      } else if (tokens[0].equals("cancel")) {
-        // TODO: send appropriate command to the server and display the
-        // appropriate responses form the server
-      } else if (tokens[0].equals("search")) {
-        // TODO: send appropriate command to the server and display the
-        // appropriate responses form the server
-      } else if (tokens[0].equals("list")) {
-        // TODO: send appropriate command to the server and display the
-        // appropriate responses form the server
-      } else {
-        System.out.println("ERROR: No such command");
-      }
-    }
-   
   }
 }

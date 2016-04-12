@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class Server {
-	final static boolean printStatements = true;
+	final static boolean printStatements = false;
 	static ArrayList<String> ips;
 	static ArrayList<Integer> ports;
 	static ArrayList<Integer> serverPorts; // only used for each server sending messages to each other
@@ -29,7 +29,7 @@ public class Server {
     static int myID;
     static int[] req_queue;
     static ArrayList<String> client_request;
-    static ArrayList<Socket> sockets;
+    static ArrayList<Socket> sockets; 
     public static void main (String[] args) {
 	    Scanner sc = new Scanner(System.in);
 	    myID = sc.nextInt();
@@ -110,7 +110,6 @@ public class Server {
 				Socket connectionSocket = sockets.remove(0);
 				clientListener = createClientRequestListener(socket);
 				clientListener.start();
-				
 				clientRequest(request, connectionSocket, numServer);			
 			}
 			
@@ -161,11 +160,16 @@ public class Server {
 			    	int myPort = serverPorts.get(myID - 1);
 			    	
 		 			socket = new ServerSocket(myPort);
+		 			if(printStatements)
+		 				System.out.println("Server Socket Awaiting acceptance");
 		 			tcpsocket = socket.accept();
+		 			if(printStatements)
+		 				System.out.println("Server Socket Accepted");
 		 			final ObjectInputStream ois = new ObjectInputStream(tcpsocket.getInputStream());
 					Message msg = (Message)ois.readObject();
-					req_queue[msg.getID()] = msg.getTime();
+					req_queue[msg.getID() - 1] = msg.getTime();
 					// maybe update inventory
+					quantities = msg.getQuantities();
 					socket.close();
 				} catch (ClassNotFoundException | IOException e) {
 					// TODO Auto-generated catch block
@@ -178,7 +182,6 @@ public class Server {
     
     // parse Inventory file
     public static void parseInventory(String inventoryPath){
-    	
 	    supplies = new ArrayList<String>();
 	    quantities = new ArrayList<Integer>();
 	    try {
@@ -213,14 +216,16 @@ public class Server {
     
     public static void sendOkays(int numServer){
     	if(printStatements)
-    		System.out.println("Sending an okay");
+    		System.out.println("Entering okay");
     	int myTime = req_queue[myID - 1];
     	for(int i = 0; i < numServer; ++i){
     		if(i == (myID - 1))
     			continue;
     		if(req_queue[i] < myTime){
+    			if(printStatements)
+    				System.out.println("Sending okay");
     			boolean okay = true;
-    			Message msg = new Message(okay, quantities);
+    			Message msg = new Message(okay, quantities, myID);
     			try {
 					sendMsg(i, msg);
 				} catch (IOException e) {
@@ -263,6 +268,8 @@ public class Server {
     
     public static void listenForOkays(int numServer){
     	for(int i = 0; i < numServer; ++i){
+    		if(i == (myID - 1))
+    			continue;
     		final Socket tcpSocket;
 			try {
 				tcpSocket = new Socket(InetAddress.getByName(ips.get(i)), serverPorts.get(i));
@@ -279,11 +286,23 @@ public class Server {
 							e.printStackTrace();
 						}
 					}		
-		    	});
+		    	}).start();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}   
+    	}
+    }
+    
+    /* resets the req_queue so that the queue will be filled with
+     * achknowledgement time stamps rather than local copies
+     */
+    public static void resetForOkays(int numServer){
+    	for(int i = 0; i < numServer; ++i){
+    		if(i == (myID - 1))
+    			continue;
+    		if(req_queue[i] == Integer.MAX_VALUE)
+    			req_queue[i] = -1;
     	}
     }
     
@@ -294,10 +313,13 @@ public class Server {
     		System.out.println("Requesting CS");
     	clock.tick();
     	req_queue[myID - 1] = clock.getValue(myID - 1);
+    	resetForOkays(numServer);
     	broadcastMsg(numServer);
     	if(printStatements)
     		System.out.println("Broadcasted Request");
-    	listenForOkays(numServer);
+    	//listenForOkays(numServer);
+    	if(printStatements)
+    		System.out.println("Listening for response");
     	while(!okayCS(numServer)){
 			try {
 				Thread.sleep(1000);
@@ -314,7 +336,7 @@ public class Server {
     	req_queue[myID - 1] = Integer.MAX_VALUE;
     	broadcastMsg(numServer);
     	if(printStatements)
-    		System.out.println("Broadcasted relase");
+    		System.out.println("Broadcasted release");
     }
     
     public static String clientRequest(String order, Socket connectionSocket, int numServer){
@@ -377,6 +399,7 @@ public class Server {
 			
 			//else remove order from all of the lists...lol
 			else {
+				requestCS(numServer);
 				rString = "Order " + tokens[1] + " is canceled";
 				int supplyIndex = supplies.indexOf(myProductName.get(indexID));
 				quantities.set(supplyIndex, Integer.parseInt(myOrder.get(indexID)) + quantities.get(supplyIndex));
@@ -384,6 +407,7 @@ public class Server {
 			    userName.remove(indexID);
 			    myProductName.remove(indexID);
 			    myOrder.remove(indexID);
+			    releaseCS(numServer);
 				
 			}
 			//System.out.println("Sending data");
