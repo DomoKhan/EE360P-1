@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class Server {
-	final static boolean printStatements = true;
+	final static boolean printStatements = false;
 	static ArrayList<String> ips;
 	static ArrayList<Integer> ports;
 	static ArrayList<Integer> serverPorts; // only used for each server sending messages to each other
